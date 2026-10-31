@@ -1,3 +1,10 @@
 allowBuilds:
   esbuild: true
   sharp: true
+
+# sanitize-html is CommonJS and requires htmlparser2. From v11 htmlparser2 is
+# ESM only, and the Vercel runtime cannot require() an ES module, so every page
+# that renders Markdown fails there with ERR_REQUIRE_ESM. v10 still ships a
+# CommonJS entry point.
+overrides:
+  htmlparser2: ^10.1.0
