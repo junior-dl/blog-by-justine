@@ -1,0 +1,46 @@
+name: Mirror main to public repo
+
+# Pushes ONLY the main branch of this private repo to the public
+# junior-dl/blog-by-justine repo whenever a pull request into main is merged.
+# Needs the secret PUBLIC_MIRROR_DEPLOY_KEY (SSH private key whose public half
+# is a write-enabled deploy key on junior-dl/blog-by-justine).
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch: # manual "Run workflow" button for a re-sync
+
+concurrency:
+  group: mirror-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    if: >-
+      github.repository == 'junior-dl/blog-by-justine-private' &&
+      (github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out full history of main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Push main to junior-dl/blog-by-justine
+        env:
+          SSH_KEY: ${{ secrets.PUBLIC_MIRROR_DEPLOY_KEY }}
+        run: |
+          if [ -z "$SSH_KEY" ]; then echo "::error::Secret PUBLIC_MIRROR_DEPLOY_KEY is not set"; exit 1; fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/mirror_key
+          chmod 600 ~/.ssh/mirror_key
+          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/mirror_key -o IdentitiesOnly=yes"
+          git push --force git@github.com:junior-dl/blog-by-justine.git refs/remotes/origin/main:refs/heads/main
+          rm -f ~/.ssh/mirror_key
