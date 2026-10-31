@@ -1,0 +1,59 @@
+---
+import { formatDate, isoDate, readingTime } from "../lib/format";
+import type { Post } from "../lib/posts";
+
+interface Props {
+    post: Post;
+    /** Larger treatment, used for the newest post. */
+    featured?: boolean;
+}
+
+const { post, featured = false } = Astro.props;
+const minutes = readingTime(post.body);
+---
+
+<a
+href={`/blog/${post.slug}/`}
+class:list={[
+    "group flex h-full flex-col rounded-3xl border border-white/10 bg-white/[.02] transition-all duration-300 hover:-translate-y-1 hover:border-[#ffe4e1] hover:bg-white/[.04]",
+    featured ? "p-8 sm:p-10" : "p-7",
+]}>
+
+<p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+
+<time datetime={isoDate(post.pubDate)}>
+{formatDate(post.pubDate)}
+</time>
+
+<span aria-hidden="true">·</span>
+
+<span>
+{minutes} min read
+</span>
+
+</p>
+
+<h3
+class:list={[
+    "mt-3 font-bold leading-snug text-balance group-hover:text-[#ffe4e1]",
+    featured ? "text-xl sm:text-2xl" : "text-lg",
+]}>
+{post.title}
+</h3>
+
+{post.description && (
+<p
+class:list={[
+    "mt-3 text-slate-400",
+    featured ? "leading-7" : "text-sm leading-6 line-clamp-3",
+]}>
+{post.description}
+</p>
+)}
+
+<span class="mt-5 inline-flex items-center gap-2 text-sm font-medium text-[#ffe4e1]">
+Read post
+<span class="transition-transform duration-300 group-hover:translate-x-1" aria-hidden="true">→</span>
+</span>
+
+</a>

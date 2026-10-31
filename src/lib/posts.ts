@@ -1,4 +1,4 @@
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, ne } from "drizzle-orm";
 import { getDb } from "../db/client";
 import { posts, type NewPost, type Post } from "../db/schema";
 
@@ -32,6 +32,28 @@ export async function getPublishedPostBySlug(slug: string): Promise<Post | undef
         .where(and(eq(posts.slug, slug), eq(posts.published, true)))
         .limit(1);
     return row;
+}
+
+export type PostLink = Pick<Post, "slug" | "title">;
+
+/** The published posts published just after / just before the given one. */
+export async function getAdjacentPosts(
+    post: Post,
+): Promise<{ newer?: PostLink; older?: PostLink }> {
+    const columns = { slug: posts.slug, title: posts.title };
+    const [newer] = await getDb()
+        .select(columns)
+        .from(posts)
+        .where(and(eq(posts.published, true), gt(posts.pubDate, post.pubDate)))
+        .orderBy(asc(posts.pubDate))
+        .limit(1);
+    const [older] = await getDb()
+        .select(columns)
+        .from(posts)
+        .where(and(eq(posts.published, true), lt(posts.pubDate, post.pubDate)))
+        .orderBy(desc(posts.pubDate))
+        .limit(1);
+    return { newer, older };
 }
 
 /* ---------------- portal ---------------- */

@@ -1,7 +1,8 @@
 ---
 import Layout from "../../layouts/Layout.astro";
+import { formatDate, isoDate, readingTime } from "../../lib/format";
 import { renderMarkdown } from "../../lib/markdown";
-import { getPublishedPostBySlug } from "../../lib/posts";
+import { getAdjacentPosts, getPublishedPostBySlug } from "../../lib/posts";
 
 export const prerender = false;
 
@@ -12,33 +13,104 @@ if (!post) {
 }
 
 const html = renderMarkdown(post.body);
+const minutes = readingTime(post.body);
+const { newer, older } = await getAdjacentPosts(post);
 
 Astro.response.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=600");
 ---
 
 <Layout title={post.title} description={post.description}>
 
-<article class="max-w-3xl mx-auto px-6 py-20">
+<article class="mx-auto max-w-3xl px-6 py-12 sm:py-16">
 
 <a
 href="/blog"
-class="text-[#ffe4e1]">
+class="group inline-flex items-center gap-2 text-sm text-slate-400 hover:text-[#ffe4e1]">
 
-← Back
+<span class="transition-transform duration-300 group-hover:-translate-x-1" aria-hidden="true">←</span>
+All posts
 
 </a>
 
-<h1 class="text-6xl font-black mt-8 leading-tight">
+<header class="mt-10">
+
+<h1 class="text-3xl font-bold leading-tight tracking-tight text-balance md:text-4xl">
 {post.title}
 </h1>
 
-<p class="mt-6 text-slate-500">
-{post.pubDate.toDateString()}
+{post.description && (
+<p class="mt-5 text-lg leading-8 text-slate-300">
+{post.description}
+</p>
+)}
+
+<div class="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
+
+<span class="text-slate-400">
+{post.author}
+</span>
+
+<span aria-hidden="true">·</span>
+
+<time datetime={isoDate(post.pubDate)}>
+{formatDate(post.pubDate)}
+</time>
+
+<span aria-hidden="true">·</span>
+
+<span>
+{minutes} min read
+</span>
+
+</div>
+
+</header>
+
+<div class="my-10 h-px bg-white/10 sm:my-12"></div>
+
+<div class="post-body" set:html={html} />
+
+<div class="mt-16 h-px bg-white/10"></div>
+
+{(newer || older) && (
+
+<nav class="mt-8 grid gap-4 sm:grid-cols-2" aria-label="More posts">
+
+{newer ? (
+<a
+href={`/blog/${newer.slug}/`}
+class="rounded-2xl border border-white/10 bg-white/[.02] p-6 transition hover:border-[#ffe4e1] hover:bg-white/[.04]">
+
+<p class="text-xs uppercase tracking-[.2em] text-slate-500">
+Newer
 </p>
 
-<div class="h-px bg-white/10 my-12"></div>
+<p class="mt-2 text-sm font-semibold leading-snug">
+{newer.title}
+</p>
 
-<div class="post-body text-lg" set:html={html} />
+</a>
+) : <div class="hidden sm:block"></div>}
+
+{older && (
+<a
+href={`/blog/${older.slug}/`}
+class="rounded-2xl border border-white/10 bg-white/[.02] p-6 transition hover:border-[#ffe4e1] hover:bg-white/[.04] sm:text-right">
+
+<p class="text-xs uppercase tracking-[.2em] text-slate-500">
+Older
+</p>
+
+<p class="mt-2 text-sm font-semibold leading-snug">
+{older.title}
+</p>
+
+</a>
+)}
+
+</nav>
+
+)}
 
 </article>
 
