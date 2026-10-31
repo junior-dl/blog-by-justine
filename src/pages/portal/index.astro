@@ -1,0 +1,104 @@
+---
+import PortalLayout from "../../layouts/PortalLayout.astro";
+import { TOPIC_FORM_URL } from "../../lib/env";
+import { listAllPosts } from "../../lib/posts";
+
+export const prerender = false;
+
+const posts = await listAllPosts();
+const shown = posts.filter((p) => p.published).length;
+const fmt = new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" });
+const sourceLabel: Record<string, string> = { n8n: "AI draft", import: "Imported", portal: "Manual" };
+---
+
+<PortalLayout title="Posts">
+    <div class="flex flex-wrap items-end justify-between gap-6">
+        <div>
+            <h1 class="text-4xl font-black">Posts</h1>
+            <p class="mt-2 text-slate-400">{posts.length} total · {shown} shown on the site · {posts.length - shown} hidden</p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+            <a class="btn btn-ghost" href="/portal/posts/new">Write manually</a>
+            <a class="btn btn-primary" href={TOPIC_FORM_URL()} target="_blank" rel="noopener">New post from topic ↗</a>
+        </div>
+    </div>
+
+    <div class="mt-8 flex gap-2 text-sm" role="tablist" id="filters">
+        <button class="rounded-full bg-white/10 px-4 py-1.5" data-filter="all">All</button>
+        <button class="rounded-full px-4 py-1.5 text-slate-400 hover:bg-white/5" data-filter="shown">Shown</button>
+        <button class="rounded-full px-4 py-1.5 text-slate-400 hover:bg-white/5" data-filter="hidden">Hidden</button>
+    </div>
+
+    {posts.length === 0 ? (
+        <div class="card mt-6 text-center text-slate-400">
+            No posts yet. Use <strong>New post from topic</strong> to have the AI draft one.
+        </div>
+    ) : (
+        <ul class="mt-6 divide-y divide-white/10 rounded-3xl border border-white/10" id="post-list">
+            {posts.map((post) => (
+                <li class="flex flex-wrap items-center gap-4 p-5 sm:flex-nowrap" data-post={post.id} data-published={String(post.published)}>
+                    <div class="min-w-0 flex-1">
+                        <a href={`/portal/posts/${post.id}`} class="block truncate text-lg font-semibold hover:text-[#ffe4e1]">{post.title}</a>
+                        <p class="mt-1 text-sm text-slate-500">
+                            {fmt.format(post.pubDate)} · {sourceLabel[post.source] ?? post.source} · /blog/{post.slug}
+                        </p>
+                    </div>
+                    <label class="flex cursor-pointer items-center gap-3 text-sm">
+                        <span class="w-14 text-right text-slate-400" data-status>{post.published ? "Shown" : "Hidden"}</span>
+                        <input type="checkbox" class="peer sr-only" data-toggle checked={post.published}
+                            aria-label={`Show "${post.title}" on the site`} />
+                        <span class="relative h-6 w-11 rounded-full bg-white/15 transition peer-checked:bg-[#ffe4e1] peer-focus-visible:ring-2 peer-focus-visible:ring-white
+                            after:absolute after:left-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-5 peer-checked:after:bg-black"></span>
+                    </label>
+                    <div class="flex gap-2">
+                        <a class="btn btn-ghost px-4 py-2 text-sm" href={`/portal/posts/${post.id}`}>Edit</a>
+                        <a class:list={["btn btn-ghost px-4 py-2 text-sm", !post.published && "hidden"]} data-view
+                            href={`/blog/${post.slug}/`} target="_blank">View ↗</a>
+                    </div>
+                </li>
+            ))}
+        </ul>
+    )}
+</PortalLayout>
+
+<script>
+    import { toast } from "../../lib/toast";
+
+    document.querySelectorAll<HTMLLIElement>("[data-post]").forEach((row) => {
+        const toggle = row.querySelector<HTMLInputElement>("[data-toggle]")!;
+        toggle.addEventListener("change", async () => {
+            const published = toggle.checked;
+            toggle.disabled = true;
+            const res = await fetch(`/api/portal/posts/${row.dataset.post}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ published }),
+            });
+            toggle.disabled = false;
+            if (!res.ok) {
+                toggle.checked = !published;
+                return toast("Couldn't update. Try again.");
+            }
+            row.dataset.published = String(published);
+            row.querySelector("[data-status]")!.textContent = published ? "Shown" : "Hidden";
+            row.querySelector("[data-view]")!.classList.toggle("hidden", !published);
+            toast(published ? "Post is now on the site" : "Post hidden from the site");
+        });
+    });
+
+    const buttons = document.querySelectorAll<HTMLButtonElement>("[data-filter]");
+    buttons.forEach((btn) =>
+        btn.addEventListener("click", () => {
+            const f = btn.dataset.filter;
+            buttons.forEach((b) => {
+                const on = b === btn;
+                b.classList.toggle("bg-white/10", on);
+                b.classList.toggle("text-slate-400", !on);
+            });
+            document.querySelectorAll<HTMLLIElement>("[data-post]").forEach((row) => {
+                const pub = row.dataset.published === "true";
+                row.hidden = f === "shown" ? !pub : f === "hidden" ? pub : false;
+            });
+        }),
+    );
+</script>

@@ -1,0 +1,193 @@
+---
+import type { Post } from "../../lib/posts";
+
+interface Props {
+    post?: Post;
+}
+
+const { post } = Astro.props;
+const isNew = !post;
+const date = (post?.pubDate ?? new Date()).toISOString().slice(0, 10);
+---
+
+<form id="editor" class="space-y-8" data-id={post?.id ?? ""} novalidate>
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div class="min-w-0">
+            <a href="/portal" class="text-sm text-slate-400 hover:text-white">← All posts</a>
+            <h1 class="mt-2 truncate text-3xl font-black">{isNew ? "New post" : "Edit post"}</h1>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+            <label class="flex cursor-pointer items-center gap-3 text-sm">
+                <input type="checkbox" name="published" class="peer sr-only" checked={post?.published ?? false} />
+                <span class="relative h-6 w-11 rounded-full bg-white/15 transition peer-checked:bg-[#ffe4e1] peer-focus-visible:ring-2 peer-focus-visible:ring-white
+                    after:absolute after:left-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-5 peer-checked:after:bg-black"></span>
+                <span class="text-slate-300">Show on site</span>
+            </label>
+            {post?.published && (
+                <a class="btn btn-ghost px-4 py-2 text-sm" href={`/blog/${post.slug}/`} target="_blank">View ↗</a>
+            )}
+            <button class="btn btn-primary px-6 py-2.5" type="submit" id="save">{isNew ? "Create post" : "Save changes"}</button>
+        </div>
+    </div>
+
+    <div class="error" hidden data-error></div>
+
+    <div class="grid gap-6 md:grid-cols-2">
+        <div class="md:col-span-2">
+            <label class="label" for="title">Title</label>
+            <input class="field text-lg font-semibold" id="title" name="title" value={post?.title ?? ""} maxlength="200" required />
+        </div>
+        <div>
+            <label class="label" for="slug">URL slug</label>
+            <div class="flex items-center rounded-xl border border-white/10 bg-white/5 focus-within:border-[#ffe4e1]">
+                <span class="pl-4 text-slate-500">/blog/</span>
+                <input class="w-full bg-transparent px-1 py-3 focus:outline-none" id="slug" name="slug"
+                    value={post?.slug ?? ""} maxlength="120" placeholder="made-from-title" />
+            </div>
+        </div>
+        <div>
+            <label class="label" for="pubDate">Date</label>
+            <input class="field [color-scheme:dark]" id="pubDate" name="pubDate" type="date" value={date} required />
+        </div>
+        <div class="md:col-span-2">
+            <label class="label" for="description">Summary <span class="text-slate-500">(shown in post lists and search results)</span></label>
+            <textarea class="field" id="description" name="description" rows="2" maxlength="400">{post?.description ?? ""}</textarea>
+        </div>
+    </div>
+
+    <div>
+        <div class="mb-2 flex items-center justify-between">
+            <span class="label mb-0">Content <span class="text-slate-500">(Markdown)</span></span>
+            <div class="flex gap-1 rounded-full bg-white/5 p-1 text-sm lg:hidden" id="tabs">
+                <button type="button" class="rounded-full bg-white/10 px-3 py-1" data-tab="write">Write</button>
+                <button type="button" class="rounded-full px-3 py-1 text-slate-400" data-tab="preview">Preview</button>
+            </div>
+        </div>
+        <div class="grid gap-4 lg:grid-cols-2">
+            <textarea class="field min-h-[60vh] font-mono text-sm leading-7" id="body" name="body"
+                spellcheck="true">{post?.body ?? ""}</textarea>
+            <div class="post-body hidden min-h-[60vh] overflow-auto rounded-xl border border-white/10 p-6 text-base lg:block"
+                id="preview" aria-live="polite"></div>
+        </div>
+    </div>
+
+    {!isNew && (
+        <div class="flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6 text-sm text-slate-500">
+            <span>Last saved {post!.updatedAt.toLocaleString("en", { timeZone: "Asia/Shanghai", dateStyle: "medium", timeStyle: "short" })}</span>
+            <button type="button" class="btn btn-danger px-4 py-2 text-sm" id="delete">Delete post</button>
+        </div>
+    )}
+</form>
+
+<script>
+    import { toast } from "../../lib/toast";
+
+    const form = document.getElementById("editor") as HTMLFormElement;
+    const id = form.dataset.id;
+    const body = document.getElementById("body") as HTMLTextAreaElement;
+    const preview = document.getElementById("preview")!;
+    const errorBox = form.querySelector<HTMLElement>("[data-error]")!;
+    let dirty = false;
+
+    /* ---- live preview (debounced, rendered by the server like the real page) ---- */
+    let timer: number | undefined;
+    async function refreshPreview() {
+        const res = await fetch("/api/portal/preview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ body: body.value }),
+        });
+        if (res.ok) preview.innerHTML = (await res.json()).html;
+    }
+    body.addEventListener("input", () => {
+        clearTimeout(timer);
+        timer = window.setTimeout(refreshPreview, 400);
+    });
+    refreshPreview();
+
+    /* ---- mobile write / preview tabs ---- */
+    document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((tab) =>
+        tab.addEventListener("click", () => {
+            const showPreview = tab.dataset.tab === "preview";
+            body.classList.toggle("hidden", showPreview);
+            preview.classList.toggle("hidden", !showPreview);
+            document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((t) => {
+                t.classList.toggle("bg-white/10", t === tab);
+                t.classList.toggle("text-slate-400", t !== tab);
+            });
+        }),
+    );
+
+    form.addEventListener("input", () => (dirty = true));
+    window.addEventListener("beforeunload", (e) => {
+        if (dirty) e.preventDefault();
+    });
+
+    /* ---- save ---- */
+    form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errorBox.hidden = true;
+        const get = (name: string) => (form.elements.namedItem(name) as HTMLInputElement).value;
+        const payload: Record<string, unknown> = {
+            title: get("title"),
+            description: get("description"),
+            pubDate: get("pubDate"),
+            body: body.value,
+            published: (form.elements.namedItem("published") as HTMLInputElement).checked,
+        };
+        const slug = get("slug").trim();
+        if (slug || id) payload.slug = slug || get("title");
+        if (!String(payload.title).trim()) {
+            errorBox.textContent = "Title is required.";
+            errorBox.hidden = false;
+            return;
+        }
+
+        const save = document.getElementById("save") as HTMLButtonElement;
+        save.disabled = true;
+        const res = await fetch(id ? `/api/portal/posts/${id}` : "/api/portal/posts", {
+            method: id ? "PATCH" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+        save.disabled = false;
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            errorBox.textContent = json.error ?? "Couldn't save. Try again.";
+            errorBox.hidden = false;
+            return;
+        }
+        dirty = false;
+        if (!id) {
+            location.href = `/portal/posts/${json.post.id}?created=1`;
+            return;
+        }
+        (form.elements.namedItem("slug") as HTMLInputElement).value = json.post.slug;
+        toast(json.post.published ? "Saved · live on the site within a minute" : "Saved · hidden from the site");
+    });
+
+    /* ---- delete (two-step, no browser dialog) ---- */
+    const del = document.getElementById("delete") as HTMLButtonElement | null;
+    let armed = false;
+    del?.addEventListener("click", async () => {
+        if (!armed) {
+            armed = true;
+            del.textContent = "Click again to delete forever";
+            setTimeout(() => {
+                armed = false;
+                del.textContent = "Delete post";
+            }, 4000);
+            return;
+        }
+        const res = await fetch(`/api/portal/posts/${id}`, { method: "DELETE" });
+        if (res.ok) {
+            dirty = false;
+            location.href = "/portal";
+        } else toast("Couldn't delete. Try again.");
+    });
+
+    if (new URLSearchParams(location.search).has("created")) {
+        toast("Post created");
+        history.replaceState(null, "", location.pathname);
+    }
+</script>

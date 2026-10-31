@@ -23,3 +23,38 @@ a{
     background:#ffe4e1;
     color:black;
 }
+/* Rendered Markdown in blog posts and the portal preview */
+.post-body{
+    line-height:2.1;
+}
+.post-body > * + *{ margin-top:1.5rem; }
+.post-body > :first-child{ margin-top:0; }
+.post-body h2{ font-size:1.875rem; font-weight:700; line-height:1.3; margin-top:3rem; }
+.post-body h3{ font-size:1.5rem; font-weight:700; line-height:1.35; margin-top:2.25rem; }
+.post-body h4{ font-size:1.25rem; font-weight:600; margin-top:2rem; }
+.post-body a{ color:var(--primary); text-decoration:underline; text-underline-offset:3px; }
+.post-body ul{ list-style:disc; padding-left:1.5rem; }
+.post-body ol{ list-style:decimal; padding-left:1.5rem; }
+.post-body li + li{ margin-top:.5rem; }
+.post-body li::marker{ color:var(--primary); }
+.post-body blockquote{ border-left:3px solid var(--primary); padding-left:1rem; color:#cbd5e1; font-style:italic; }
+.post-body code{ background:rgba(255,255,255,.08); padding:.1rem .35rem; border-radius:.35rem; font-size:.9em; }
+.post-body pre{ background:rgba(255,255,255,.06); padding:1rem; border-radius:.75rem; overflow-x:auto; line-height:1.6; }
+.post-body pre code{ background:none; padding:0; }
+.post-body img{ border-radius:1rem; max-width:100%; height:auto; }
+.post-body hr{ border-color:rgba(255,255,255,.1); }
+.post-body table{ width:100%; border-collapse:collapse; font-size:.95em; }
+.post-body th, .post-body td{ border:1px solid rgba(255,255,255,.12); padding:.5rem .75rem; text-align:left; }
+
+
+/* Portal UI */
+@layer components {
+  .field { @apply block w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-slate-100 placeholder:text-slate-600 focus:border-[#ffe4e1] focus:outline-none; }
+  .label { @apply mb-2 block text-sm font-medium text-slate-300; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply bg-[#ffe4e1] text-black hover:bg-white; }
+  .btn-ghost { @apply border border-white/10 text-slate-200 hover:border-white/30; }
+  .btn-danger { @apply border border-red-400/30 text-red-300 hover:bg-red-500/10; }
+  .card { @apply rounded-3xl border border-white/10 bg-white/[.02] p-6 sm:p-8; }
+  .error { @apply rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200; }
+}

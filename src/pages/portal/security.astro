@@ -1,0 +1,188 @@
+---
+import PortalLayout from "../../layouts/PortalLayout.astro";
+
+export const prerender = false;
+
+const user = Astro.locals.user!;
+const mfaOn = !!user.twoFactorEnabled;
+---
+
+<PortalLayout title="Security" bare={!mfaOn}>
+    <h1 class="text-4xl font-black">{mfaOn ? "Security" : "Turn on two-factor"}</h1>
+    <p class="mt-3 text-slate-400">Signed in as {user.email}</p>
+
+    {!mfaOn && (
+        <section class="mt-10 space-y-6" id="setup">
+            <p class="text-slate-300">
+                The portal requires an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Authy…).
+                You'll only need to do this once.
+            </p>
+
+            <form id="step-password" class="card space-y-5" novalidate>
+                <div class="error" hidden data-error></div>
+                <div>
+                    <label class="label" for="setup-password">Confirm your password</label>
+                    <input class="field" id="setup-password" type="password" autocomplete="current-password" required />
+                </div>
+                <button class="btn btn-primary w-full" type="submit">Continue</button>
+            </form>
+
+            <form id="step-scan" class="card space-y-6" hidden novalidate>
+                <div class="error" hidden data-error></div>
+                <div>
+                    <p class="font-semibold">1. Scan this QR code with your authenticator app</p>
+                    <div class="mt-4 flex justify-center rounded-2xl bg-white p-4">
+                        <img id="qr" alt="QR code for your authenticator app" width="200" height="200" />
+                    </div>
+                    <details class="mt-3 text-sm text-slate-400">
+                        <summary class="cursor-pointer">Can't scan? Enter this key instead</summary>
+                        <code id="secret" class="mt-2 block break-all rounded-lg bg-white/5 p-3 text-slate-200"></code>
+                    </details>
+                </div>
+                <div>
+                    <p class="font-semibold">2. Save your backup codes</p>
+                    <p class="mt-1 text-sm text-slate-400">Each one lets you in once if you lose your phone. Keep them somewhere safe.</p>
+                    <ul id="codes" class="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-white/5 p-4 font-mono text-sm"></ul>
+                    <button type="button" class="btn btn-ghost mt-3 w-full text-sm" id="download-codes">Download backup codes</button>
+                </div>
+                <div>
+                    <label class="label font-semibold" for="setup-code">3. Enter the 6-digit code from the app</label>
+                    <input class="field text-center text-2xl tracking-[.4em]" id="setup-code" inputmode="numeric"
+                        autocomplete="one-time-code" maxlength="6" required />
+                </div>
+                <button class="btn btn-primary w-full" type="submit">Turn on two-factor</button>
+            </form>
+        </section>
+    )}
+
+    {mfaOn && (
+        <div class="mt-10 grid gap-8 lg:grid-cols-2">
+            <section class="card space-y-5">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xl font-bold">Two-factor authentication</h2>
+                    <span class="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-semibold text-emerald-300">On</span>
+                </div>
+                <p class="text-sm text-slate-400">
+                    Lost your backup codes? Make a new set. The old codes stop working.
+                </p>
+                <form id="regen" class="space-y-4" novalidate>
+                    <div class="error" hidden data-error></div>
+                    <div>
+                        <label class="label" for="regen-password">Password</label>
+                        <input class="field" id="regen-password" type="password" autocomplete="current-password" required />
+                    </div>
+                    <button class="btn btn-ghost w-full" type="submit">Generate new backup codes</button>
+                    <ul id="new-codes" class="grid grid-cols-2 gap-2 rounded-xl bg-white/5 p-4 font-mono text-sm" hidden></ul>
+                </form>
+            </section>
+
+            <section class="card">
+                <h2 class="text-xl font-bold">Change password</h2>
+                <form id="password" class="mt-5 space-y-4" novalidate>
+                    <div class="error" hidden data-error></div>
+                    <div>
+                        <label class="label" for="current">Current password</label>
+                        <input class="field" id="current" type="password" autocomplete="current-password" required />
+                    </div>
+                    <div>
+                        <label class="label" for="next">New password (12+ characters)</label>
+                        <input class="field" id="next" type="password" autocomplete="new-password" minlength="12" required />
+                    </div>
+                    <button class="btn btn-ghost w-full" type="submit">Update password</button>
+                    <p class="text-xs text-slate-500">Other devices will be signed out.</p>
+                </form>
+            </section>
+        </div>
+    )}
+</PortalLayout>
+
+<script>
+    import QRCode from "qrcode";
+    import { authClient } from "../../lib/auth-client";
+    import { toast } from "../../lib/toast";
+
+    const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
+    function fail(form: HTMLElement, msg: string) {
+        const box = form.querySelector<HTMLElement>("[data-error]")!;
+        box.textContent = msg;
+        box.hidden = false;
+    }
+    function clear(form: HTMLElement) {
+        form.querySelector<HTMLElement>("[data-error]")!.hidden = true;
+    }
+    function renderCodes(list: HTMLElement, codes: string[]) {
+        list.replaceChildren(...codes.map((c) => Object.assign(document.createElement("li"), { textContent: c })));
+        list.hidden = false;
+    }
+
+    /* ---------- first-time setup ---------- */
+    const stepPassword = $<HTMLFormElement>("step-password");
+    const stepScan = $<HTMLFormElement>("step-scan");
+    let backupCodes: string[] = [];
+
+    stepPassword?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        clear(stepPassword);
+        const password = $<HTMLInputElement>("setup-password")!.value;
+        if (!password) return fail(stepPassword, "Enter your password.");
+        const { data, error } = await authClient.twoFactor.enable({ password });
+        if (error || !data) return fail(stepPassword, error?.status === 400 || error?.status === 401 ? "Password is incorrect." : "Something went wrong. Try again.");
+
+        const { totpURI } = data as { totpURI: string; backupCodes: string[] };
+        backupCodes = (data as { backupCodes: string[] }).backupCodes;
+        $<HTMLImageElement>("qr")!.src = await QRCode.toDataURL(totpURI, { width: 400, margin: 1 });
+        $("secret")!.textContent = new URL(totpURI).searchParams.get("secret") ?? "";
+        renderCodes($("codes")!, backupCodes);
+        stepPassword.hidden = true;
+        stepScan!.hidden = false;
+        $<HTMLInputElement>("setup-code")!.focus();
+    });
+
+    $("download-codes")?.addEventListener("click", () => {
+        const blob = new Blob(
+            [`By Justine portal backup codes\nCreated ${new Date().toISOString()}\n\n${backupCodes.join("\n")}\n`],
+            { type: "text/plain" },
+        );
+        const a = Object.assign(document.createElement("a"), {
+            href: URL.createObjectURL(blob),
+            download: "byjustine-backup-codes.txt",
+        });
+        a.click();
+        URL.revokeObjectURL(a.href);
+    });
+
+    stepScan?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        clear(stepScan);
+        const code = $<HTMLInputElement>("setup-code")!.value.replace(/\s+/g, "");
+        if (!/^\d{6}$/.test(code)) return fail(stepScan, "Enter the 6-digit code from your app.");
+        const { error } = await authClient.twoFactor.verifyTotp({ code });
+        if (error) return fail(stepScan, "That code didn't match. Check your phone's clock and try the newest code.");
+        location.href = "/portal";
+    });
+
+    /* ---------- when already on ---------- */
+    const regen = $<HTMLFormElement>("regen");
+    regen?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        clear(regen);
+        const password = $<HTMLInputElement>("regen-password")!.value;
+        const { data, error } = await authClient.twoFactor.generateBackupCodes({ password });
+        if (error || !data) return fail(regen, "Password is incorrect.");
+        renderCodes($("new-codes")!, data.backupCodes);
+        toast("New backup codes created. Save them now.");
+    });
+
+    const pw = $<HTMLFormElement>("password");
+    pw?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        clear(pw);
+        const currentPassword = $<HTMLInputElement>("current")!.value;
+        const newPassword = $<HTMLInputElement>("next")!.value;
+        if (newPassword.length < 12) return fail(pw, "New password must be at least 12 characters.");
+        const { error } = await authClient.changePassword({ currentPassword, newPassword, revokeOtherSessions: true });
+        if (error) return fail(pw, error.status === 400 ? "Current password is incorrect." : "Couldn't update the password.");
+        pw.reset();
+        toast("Password updated");
+    });
+</script>

@@ -9,11 +9,34 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "check": "astro check",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "posts:import": "tsx scripts/import-markdown.ts",
+    "admin:create": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
+    "@astrojs/vercel": "^11.0.17",
     "@tailwindcss/vite": "^4.3.2",
     "astro": "^7.0.4",
+    "better-auth": "^1.7.14",
+    "drizzle-orm": "^0.45.4",
+    "marked": "^18.1.2",
+    "pg": "^8.23.1",
+    "qrcode": "^1.5.4",
+    "sanitize-html": "^2.18.1",
     "tailwindcss": "^4.3.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.6",
+    "@types/sanitize-html": "^2.16.2",
+    "dotenv": "^18.0.9",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3"
   }
 }

@@ -1,13 +1,12 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { getCollection } from "astro:content";
+import { listPublishedPosts } from "../../lib/posts";
 
-const posts=await getCollection("blog");
+export const prerender = false;
 
-posts.sort(
-(a,b)=>
-new Date(b.data.pubDate)-new Date(a.data.pubDate)
-);
+const posts = await listPublishedPosts();
+
+Astro.response.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=600");
 ---
 
 <Layout title="Blog">
@@ -28,19 +27,19 @@ Thoughts on AI, automation and software.
 posts.map(post=>(
 
 <a
-href={`/blog/${post.id}/`}
+href={`/blog/${post.slug}/`}
 class="block rounded-3xl border border-white/10 p-8 hover:border-[#ffe4e1] transition-all hover:-translate-y-1">
 
 <h2 class="text-3xl font-bold">
-{post.data.title}
+{post.title}
 </h2>
 
 <p class="mt-4 text-slate-400">
-{post.data.description}
+{post.description}
 </p>
 
 <p class="mt-6 text-sm text-slate-500">
-{post.data.pubDate.toDateString()}
+{post.pubDate.toDateString()}
 </p>
 
 </a>

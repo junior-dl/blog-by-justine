@@ -1,15 +1,12 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { getCollection } from "astro:content";
+import { listPublishedPosts } from "../lib/posts";
 
-const posts = await getCollection("blog");
+export const prerender = false;
 
-posts.sort(
-    (a,b)=>
-        new Date(b.data.pubDate)-new Date(a.data.pubDate)
-);
+const latest = await listPublishedPosts(3);
 
-const latest=posts.slice(0,3);
+Astro.response.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=600");
 ---
 
 <Layout title="By Justine">
@@ -52,19 +49,19 @@ View all →
 latest.map(post=>(
 
 <a
-href={`/blog/${post.id}/`}
+href={`/blog/${post.slug}/`}
 class="rounded-3xl border border-white/10 p-8 hover:border-[#ffe4e1] hover:-translate-y-1 transition-all duration-300">
 
 <p class="text-slate-500 text-sm">
-{post.data.pubDate.toDateString()}
+{post.pubDate.toDateString()}
 </p>
 
 <h3 class="text-3xl font-bold mt-3">
-{post.data.title}
+{post.title}
 </h3>
 
 <p class="text-slate-400 mt-4 leading-8">
-{post.data.description}
+{post.description}
 </p>
 
 </a>

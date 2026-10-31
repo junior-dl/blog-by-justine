@@ -1,0 +1,82 @@
+---
+import "../styles/global.css";
+import { TOPIC_FORM_URL } from "../lib/env";
+
+interface Props {
+    title: string;
+    /** Hide the nav (login / two-factor / first-time MFA setup). */
+    bare?: boolean;
+}
+
+const { title, bare = false } = Astro.props;
+const user = Astro.locals.user;
+const mfaOn = !!user?.twoFactorEnabled;
+const path = Astro.url.pathname.replace(/\/$/, "");
+const nav = [
+    { href: "/portal", label: "Posts" },
+    { href: "/portal/security", label: "Security" },
+];
+---
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title} · By Justine portal</title>
+</head>
+
+<body class="min-h-screen">
+
+{!bare && (
+<header class="sticky top-0 z-50 backdrop-blur-md border-b border-white/10 bg-[#0a0505]/80">
+    <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-4 px-6 py-4">
+        <a href="/portal" class="text-xl font-bold tracking-tight">
+            JUSTINE<span class="text-[#ffe4e1]">.</span>
+            <span class="ml-2 text-xs font-medium uppercase tracking-[.25em] text-slate-500">portal</span>
+        </a>
+        <nav class="flex flex-wrap items-center gap-2 text-sm">
+            {mfaOn && nav.map((item) => (
+                <a
+                    href={item.href}
+                    class:list={[
+                        "rounded-full px-3 py-1.5 hover:bg-white/5",
+                        path === item.href && "bg-white/10 text-white",
+                        path !== item.href && "text-slate-400",
+                    ]}
+                >{item.label}</a>
+            ))}
+            {mfaOn && (
+                <a
+                    href={TOPIC_FORM_URL()}
+                    target="_blank"
+                    rel="noopener"
+                    class="rounded-full bg-[#ffe4e1] px-4 py-1.5 font-semibold text-black hover:bg-white"
+                >+ New post</a>
+            )}
+            <a href="/" target="_blank" class="rounded-full px-3 py-1.5 text-slate-400 hover:bg-white/5">View site ↗</a>
+            <button id="sign-out" type="button" class="rounded-full px-3 py-1.5 text-slate-400 hover:bg-white/5">Sign out</button>
+        </nav>
+    </div>
+</header>
+)}
+
+<main class:list={["mx-auto px-6", bare ? "max-w-md py-24" : "max-w-6xl py-12"]}>
+    <slot />
+</main>
+
+<div id="toast" role="status" aria-live="polite"
+    class="pointer-events-none fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black opacity-0 shadow-lg transition-opacity"></div>
+
+<script>
+    import { authClient } from "../lib/auth-client";
+    document.getElementById("sign-out")?.addEventListener("click", async () => {
+        await authClient.signOut();
+        location.href = "/portal/login";
+    });
+</script>
+
+</body>
+</html>

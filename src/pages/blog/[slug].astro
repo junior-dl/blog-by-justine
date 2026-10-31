@@ -1,0 +1,45 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { renderMarkdown } from "../../lib/markdown";
+import { getPublishedPostBySlug } from "../../lib/posts";
+
+export const prerender = false;
+
+const post = await getPublishedPostBySlug(Astro.params.slug ?? "");
+
+if (!post) {
+    return Astro.rewrite("/404");
+}
+
+const html = renderMarkdown(post.body);
+
+Astro.response.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=600");
+---
+
+<Layout title={post.title} description={post.description}>
+
+<article class="max-w-3xl mx-auto px-6 py-20">
+
+<a
+href="/blog"
+class="text-[#ffe4e1]">
+
+← Back
+
+</a>
+
+<h1 class="text-6xl font-black mt-8 leading-tight">
+{post.title}
+</h1>
+
+<p class="mt-6 text-slate-500">
+{post.pubDate.toDateString()}
+</p>
+
+<div class="h-px bg-white/10 my-12"></div>
+
+<div class="post-body text-lg" set:html={html} />
+
+</article>
+
+</Layout>
